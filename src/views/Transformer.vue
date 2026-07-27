@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useSettingsStore } from '@/store/settings'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -28,8 +28,35 @@ const responseContentType = ref<string>('')
 const responseDuration = ref<number>(0)
 const responseCacheStatus = ref<string>('')
 
+const services = ref<any[]>([])
+
+onMounted(async () => {
+  try {
+    const headers: Record<string, string> = {}
+    if (store.token) headers['Authorization'] = `Bearer ${store.token}`
+    const res = await fetch(`${store.apiUrl.replace(/\/$/, '')}/api/services`, { headers })
+    if (res.ok) {
+      const data = await res.json()
+      services.value = data.services || []
+    }
+  } catch (e) {
+    // Ignore errors silently for services fetch
+  }
+})
+
 async function submitRequest() {
-  if (!url.value) return
+  let finalService = useService.value
+  let finalUrl = url.value.trim()
+
+  if (!finalService && finalUrl.includes('mp.weixin.qq.com')) {
+    finalService = 'weixin'
+  }
+
+  if (!finalUrl && finalService) {
+    finalUrl = `service://${finalService}`
+  }
+
+  if (!finalUrl) return
   
   loading.value = true
   responseData.value = ''
@@ -39,16 +66,16 @@ async function submitRequest() {
   
   const startTime = performance.now()
   
-  try {
-    const params = new URLSearchParams()
-    params.append('url', url.value)
-    if (format.value) params.append('format', format.value)
-    if (noCache.value) params.append('noCache', 'true')
-    if (forceRefresh.value) params.append('forceRefresh', 'true')
-    if (cacheTtl.value !== 3600) params.append('cacheTtl', cacheTtl.value.toString())
-    if (useService.value) params.append('useService', useService.value)
+    try {
+      const params = new URLSearchParams()
+      params.append('url', finalUrl)
+      if (format.value) params.append('format', format.value)
+      if (noCache.value) params.append('noCache', 'true')
+      if (forceRefresh.value) params.append('forceRefresh', 'true')
+      if (cacheTtl.value !== 3600) params.append('cacheTtl', cacheTtl.value.toString())
+      if (finalService) params.append('useService', finalService)
 
-    const headers: Record<string, string> = {}
+      const headers: Record<string, string> = {}
     if (store.token) {
       headers['Authorization'] = `Bearer ${store.token}`
     }
@@ -142,42 +169,51 @@ function clearResponse() {
         </CardHeader>
         <CardContent class="space-y-4">
           <div class="space-y-2">
-            <Label for="url">Target URL <span class="text-destructive">*</span></Label>
-            <Input id="url" v-model="url" placeholder="https://example.com" @keydown.enter="submitRequest" />
-          </div>
-
-          <div class="space-y-2">
-            <Label>Output Format</Label>
-            <Select v-model="format">
-              <SelectTrigger>
-                <SelectValue placeholder="Select format" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="raw_html">raw_html</SelectItem>
-                <SelectItem value="cleaned_html">cleaned_html</SelectItem>
-                <SelectItem value="json">json</SelectItem>
-                <SelectItem value="text">text</SelectItem>
-                <SelectItem value="markdown">markdown</SelectItem>
-                <SelectItem value="rss">rss</SelectItem>
-                <SelectItem value="digested">digested</SelectItem>
-                <SelectItem value="extracted">extracted</SelectItem>
-                <SelectItem value="all">all</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>Crawler Type & Target URL</Label>
+            <div class="flex gap-2">
+              <Select v-model="useService">
+                <SelectTrigger class="w-[150px] shrink-0">
+                  <SelectValue placeholder="Auto Detect" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Auto Detect</SelectItem>
+                  <SelectItem v-for="s in services" :key="s.id" :value="s.id">{{ s.name || s.id }}</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input id="url" v-model="url" placeholder="https://example.com" class="flex-1" @keydown.enter="submitRequest" />
+            </div>
+            <p class="text-[0.8rem] text-muted-foreground">
+              Leave URL empty for crawlers that don't require a target.
+            </p>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-2">
+              <Label>Output Format</Label>
+              <Select v-model="format">
+                <SelectTrigger>
+                  <SelectValue placeholder="Select format" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="raw_html">raw_html</SelectItem>
+                  <SelectItem value="cleaned_html">cleaned_html</SelectItem>
+                  <SelectItem value="json">json</SelectItem>
+                  <SelectItem value="text">text</SelectItem>
+                  <SelectItem value="markdown">markdown</SelectItem>
+                  <SelectItem value="rss">rss</SelectItem>
+                  <SelectItem value="digested">digested</SelectItem>
+                  <SelectItem value="extracted">extracted</SelectItem>
+                  <SelectItem value="all">all</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div class="space-y-2">
               <Label for="cacheTtl">Cache TTL (s)</Label>
               <Input id="cacheTtl" v-model.number="cacheTtl" type="number" />
             </div>
-            <div class="space-y-2">
-              <Label for="useService">Service ID</Label>
-              <Input id="useService" v-model="useService" placeholder="Optional" />
-            </div>
           </div>
 
-          <div class="space-y-4 pt-2">
+          <div class="flex items-center gap-6 pt-2">
             <div class="flex items-center space-x-2">
               <Checkbox id="noCache" v-model:checked="noCache" />
               <Label for="noCache" class="cursor-pointer font-normal">No Cache</Label>
@@ -188,7 +224,7 @@ function clearResponse() {
             </div>
           </div>
 
-          <Button class="w-full mt-4" @click="submitRequest" :disabled="loading || !url">
+          <Button class="w-full mt-4" @click="submitRequest" :disabled="loading || (!url && !useService)">
             <Loader2 v-if="loading" class="w-4 h-4 mr-2 animate-spin" />
             {{ loading ? 'Sending...' : 'Send Request' }}
           </Button>
