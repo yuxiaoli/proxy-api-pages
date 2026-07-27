@@ -18,7 +18,7 @@ const format = ref('raw_html')
 const noCache = ref(false)
 const forceRefresh = ref(false)
 const cacheTtl = ref(3600)
-const useService = ref('')
+const useService = ref('auto')
 
 const loading = ref(false)
 const responseData = ref('')
@@ -45,11 +45,13 @@ onMounted(async () => {
 })
 
 async function submitRequest() {
-  let finalService = useService.value
+  let finalService = useService.value === 'auto' ? '' : useService.value
   let finalUrl = url.value.trim()
 
   if (!finalService && finalUrl.includes('mp.weixin.qq.com')) {
-    finalService = 'weixin'
+    if (services.value.some(s => s.id === 'weixin')) {
+      finalService = 'weixin'
+    }
   }
 
   if (!finalUrl && finalService) {
@@ -176,7 +178,7 @@ function clearResponse() {
                   <SelectValue placeholder="Auto Detect" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Auto Detect</SelectItem>
+                  <SelectItem value="auto">Auto Detect</SelectItem>
                   <SelectItem v-for="s in services" :key="s.id" :value="s.id">{{ s.name || s.id }}</SelectItem>
                 </SelectContent>
               </Select>
@@ -224,7 +226,7 @@ function clearResponse() {
             </div>
           </div>
 
-          <Button class="w-full mt-4" @click="submitRequest" :disabled="loading || (!url && !useService)">
+          <Button class="w-full mt-4" @click="submitRequest" :disabled="loading || (!url && useService === 'auto')">
             <Loader2 v-if="loading" class="w-4 h-4 mr-2 animate-spin" />
             {{ loading ? 'Sending...' : 'Send Request' }}
           </Button>
