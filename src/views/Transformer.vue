@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useSettingsStore } from '@/store/settings'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import AceEditor from '@/components/AceEditor.vue'
 import { Copy, Download, Trash2, Code, Loader2 } from 'lucide-vue-next'
@@ -18,7 +18,7 @@ const format = ref('raw_html')
 const noCache = ref(false)
 const forceRefresh = ref(false)
 const cacheTtl = ref(3600)
-const useService = ref('auto')
+const crawlerType = ref('auto')
 
 const loading = ref(false)
 const responseData = ref('')
@@ -29,6 +29,40 @@ const responseDuration = ref<number>(0)
 const responseCacheStatus = ref<string>('')
 
 const services = ref<any[]>([])
+
+const builtInExtractors = [
+  { id: 'ext_openrouter', name: 'OpenRouter Rankings', defaultUrl: 'https://openrouter.ai/rankings', requiresUrl: false },
+  { id: 'ext_github', name: 'GitHub Trending', defaultUrl: 'https://github.com/trending', requiresUrl: false },
+  { id: 'ext_halfsaint', name: 'HalfSaint Party Menu', defaultUrl: 'https://halfsaintvegas.com/pages/this-weeks-party-menu', requiresUrl: false },
+  { id: 'ext_ipspeed_openvpn', name: 'IPSpeed OpenVPN', defaultUrl: 'https://ipspeed.info/free-openvpn.php', requiresUrl: false },
+  { id: 'ext_ipspeed_proxy', name: 'IPSpeed Proxy', defaultUrl: 'https://ipspeed.info/free-proxy.php', requiresUrl: false },
+  { id: 'ext_ipspeed_l2tp', name: 'IPSpeed L2TP', defaultUrl: 'https://ipspeed.info/free-l2tpipsec.php', requiresUrl: false },
+  { id: 'ext_rsshub', name: 'RSSHub Instances', defaultUrl: 'https://docs.rsshub.app/guide/instances', requiresUrl: false },
+  { id: 'ext_skills_sh', name: 'Skills.sh Trending', defaultUrl: 'https://skills.sh', requiresUrl: false },
+  { id: 'ext_terminaltrove_feed', name: 'TerminalTrove Feed', defaultUrl: 'https://terminaltrove.com/new.xml', requiresUrl: false },
+  { id: 'ext_terminaltrove_list', name: 'TerminalTrove List', defaultUrl: 'https://terminaltrove.com/list/', requiresUrl: false },
+  { id: 'ext_ark_funds', name: 'ARK Funds CSV', defaultUrl: 'https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_INNOVATION_ETF_ARKK_HOLDINGS.csv', requiresUrl: false },
+  { id: 'ext_weixin', name: 'WeChat Article', defaultUrl: '', requiresUrl: true },
+  { id: 'ext_chatgpt', name: 'ChatGPT Shared', defaultUrl: '', requiresUrl: true },
+  { id: 'ext_36kr', name: '36kr Article', defaultUrl: '', requiresUrl: true },
+  { id: 'ext_xueqiu', name: 'Xueqiu Status', defaultUrl: '', requiresUrl: true },
+  { id: 'ext_skills_detail', name: 'Skills.sh Detail', defaultUrl: '', requiresUrl: true },
+  { id: 'ext_terminaltrove_detail', name: 'TerminalTrove Detail', defaultUrl: '', requiresUrl: true }
+]
+
+function onCrawlerTypeChange(val: any) {
+  if (typeof val !== 'string') return
+  if (val.startsWith('ext_')) {
+    const ext = builtInExtractors.find(e => e.id === val)
+    if (ext && !ext.requiresUrl) {
+      url.value = ext.defaultUrl
+    } else {
+      url.value = ''
+    }
+  } else if (val.startsWith('srv_')) {
+    url.value = ''
+  }
+}
 
 onMounted(async () => {
   try {
@@ -44,18 +78,32 @@ onMounted(async () => {
   }
 })
 
+const isSubmitDisabled = computed(() => {
+  if (loading.value) return true
+  if (crawlerType.value === 'auto') return !url.value.trim()
+  if (crawlerType.value.startsWith('srv_')) return false // Browser services can use a dummy URL
+  if (crawlerType.value.startsWith('ext_')) {
+    const ext = builtInExtractors.find(e => e.id === crawlerType.value)
+    if (ext && ext.requiresUrl) return !url.value.trim()
+    return false // Extractor with defaultUrl doesn't need explicit URL input
+  }
+  return false
+})
+
 async function submitRequest() {
-  let finalService = useService.value === 'auto' ? '' : useService.value
+  let finalService = ''
   let finalUrl = url.value.trim()
 
-  if (!finalService && finalUrl.includes('mp.weixin.qq.com')) {
-    if (services.value.some(s => s.id === 'weixin')) {
-      finalService = 'weixin'
+  if (crawlerType.value.startsWith('srv_')) {
+    finalService = crawlerType.value.replace('srv_', '')
+    if (!finalUrl) {
+      finalUrl = `service://${finalService}`
     }
-  }
-
-  if (!finalUrl && finalService) {
-    finalUrl = `service://${finalService}`
+  } else if (crawlerType.value.startsWith('ext_')) {
+    const ext = builtInExtractors.find(e => e.id === crawlerType.value)
+    if (ext && !ext.requiresUrl && !finalUrl) {
+      finalUrl = ext.defaultUrl
+    }
   }
 
   if (!finalUrl) return
@@ -173,13 +221,26 @@ function clearResponse() {
           <div class="space-y-2">
             <Label>Crawler Type & Target URL</Label>
             <div class="flex gap-2">
-              <Select v-model="useService">
-                <SelectTrigger class="w-[150px] shrink-0">
+              <Select v-model="crawlerType" @update:modelValue="onCrawlerTypeChange">
+                <SelectTrigger class="w-[200px] shrink-0">
                   <SelectValue placeholder="Auto Detect" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="auto">Auto Detect</SelectItem>
-                  <SelectItem v-for="s in services" :key="s.id" :value="s.id">{{ s.name || s.id }}</SelectItem>
+                  
+                  <SelectGroup>
+                    <SelectLabel>Built-in Extractors</SelectLabel>
+                    <SelectItem v-for="ext in builtInExtractors" :key="ext.id" :value="ext.id">
+                      {{ ext.name }}
+                    </SelectItem>
+                  </SelectGroup>
+
+                  <SelectGroup v-if="services.length">
+                    <SelectLabel>Browser Services</SelectLabel>
+                    <SelectItem v-for="s in services" :key="s.id" :value="'srv_' + s.id">
+                      {{ s.name || s.id }}
+                    </SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <Input id="url" v-model="url" placeholder="https://example.com" class="flex-1" @keydown.enter="submitRequest" />
@@ -226,7 +287,7 @@ function clearResponse() {
             </div>
           </div>
 
-          <Button class="w-full mt-4" @click="submitRequest" :disabled="loading || (!url && useService === 'auto')">
+          <Button class="w-full mt-4" @click="submitRequest" :disabled="isSubmitDisabled">
             <Loader2 v-if="loading" class="w-4 h-4 mr-2 animate-spin" />
             {{ loading ? 'Sending...' : 'Send Request' }}
           </Button>
