@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import AceEditor from '@/components/AceEditor.vue'
@@ -178,13 +178,13 @@ function clearResponse() {
           </div>
 
           <div class="space-y-4 pt-2">
-            <div class="flex items-center justify-between">
-              <Label for="noCache" class="cursor-pointer">No Cache</Label>
-              <Switch id="noCache" v-model:checked="noCache" />
+            <div class="flex items-center space-x-2">
+              <Checkbox id="noCache" v-model:checked="noCache" />
+              <Label for="noCache" class="cursor-pointer font-normal">No Cache</Label>
             </div>
-            <div class="flex items-center justify-between">
-              <Label for="forceRefresh" class="cursor-pointer">Force Refresh</Label>
-              <Switch id="forceRefresh" v-model:checked="forceRefresh" />
+            <div class="flex items-center space-x-2">
+              <Checkbox id="forceRefresh" v-model:checked="forceRefresh" />
+              <Label for="forceRefresh" class="cursor-pointer font-normal">Force Refresh</Label>
             </div>
           </div>
 
