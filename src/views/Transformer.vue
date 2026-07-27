@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import AceEditor from '@/components/AceEditor.vue'
-import { Copy, Download, Trash2, Code, Loader2 } from 'lucide-vue-next'
+import { Copy, Download, Trash2, Code, Loader2, Check } from 'lucide-vue-next'
 
 const store = useSettingsStore()
 
@@ -27,6 +27,7 @@ const responseStatus = ref<number | null>(null)
 const responseContentType = ref<string>('')
 const responseDuration = ref<number>(0)
 const responseCacheStatus = ref<string>('')
+const copied = ref(false)
 
 const services = ref<any[]>([])
 
@@ -172,6 +173,10 @@ async function submitRequest() {
 
 function copyResponse() {
   navigator.clipboard.writeText(responseData.value)
+  copied.value = true
+  setTimeout(() => {
+    copied.value = false
+  }, 2000)
 }
 
 function downloadResponse() {
@@ -209,9 +214,9 @@ function clearResponse() {
 </script>
 
 <template>
-  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-8rem)]">
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-[calc(100vh-8rem)]">
     <!-- Request Form -->
-    <div class="lg:col-span-4 flex flex-col gap-4 overflow-y-auto pr-2">
+    <div class="lg:col-span-4 flex flex-col gap-4 lg:overflow-y-auto pr-2">
       <Card>
         <CardHeader>
           <CardTitle>Request Config</CardTitle>
@@ -296,7 +301,7 @@ function clearResponse() {
     </div>
 
     <!-- Response Viewer -->
-    <div class="lg:col-span-8 flex flex-col min-h-0 border rounded-xl bg-card text-card-foreground shadow-sm overflow-hidden">
+    <div class="lg:col-span-8 flex flex-col min-h-[500px] lg:min-h-0 border rounded-xl bg-card text-card-foreground shadow-sm overflow-hidden">
       <div class="p-3 border-b flex flex-wrap items-center justify-between gap-2 bg-muted/30">
         <div class="flex items-center gap-2 text-sm">
           <Badge v-if="responseStatus" :variant="responseStatus >= 400 ? 'destructive' : 'default'">
@@ -314,7 +319,8 @@ function clearResponse() {
             <Code class="w-4 h-4" />
           </Button>
           <Button variant="ghost" size="sm" @click="copyResponse" :disabled="!responseData" title="Copy">
-            <Copy class="w-4 h-4" />
+            <Check v-if="copied" class="w-4 h-4 text-green-500" />
+            <Copy v-else class="w-4 h-4" />
           </Button>
           <Button variant="ghost" size="sm" @click="downloadResponse" :disabled="!responseData" title="Download">
             <Download class="w-4 h-4" />
